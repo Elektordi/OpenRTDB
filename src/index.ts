@@ -1,9 +1,9 @@
 import cors from 'cors'
 import express from 'express'
+import * as dotenv from 'dotenv'
 
-import { config } from '~/config'
 
-
+dotenv.config()
 export const app = express()
 let database: any = {}
 
@@ -49,7 +49,8 @@ app.route("/*.json")
         res.json(data);
     })
 
-app.listen(config.API_PORT, () => {
-    console.log(`API server running: http://127.0.0.1:${config.API_PORT}`)
+const api_port = process.env.API_PORT || 9000;
+app.listen(api_port, () => {
+    console.log(`API server running: http://127.0.0.1:${api_port}`)
 })
 

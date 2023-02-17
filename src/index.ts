@@ -52,9 +52,12 @@ app.route("/~rules")
     })
     .post((req, res) => {
         rules = req.body;
-        fs.writeFile(rules_path, JSON.stringify(rules), (err) => {
-            if (err) console.log(`Failed to save rules to ${rules_path} : ${err}`);
-            else res.status(204).send();
+        fs.writeFile(rules_path+".tmp", JSON.stringify(rules), (err) => {
+            if (err) console.log(`Failed to save rules to ${rules_path}.tmp : ${err}`);
+            else fs.rename(rules_path+".tmp", rules_path, (err) => {
+                if(err) console.log(`Failed to save rules to ${database_path} : ${err}`);
+                else res.status(204).send();
+            });
         });
     })
 
@@ -101,9 +104,13 @@ app.listen(api_port, () => {
 
 setInterval(() => {
     if(!database_changed) return;
+    database_changed = false;
     console.log("Saving database...");
-    fs.writeFile(database_path, JSON.stringify(database), (err) => {
-        if (err) console.log(`Failed to save database to ${database_path} : ${err}`);
-        else console.log(`Database saved to ${database_path}`);
+    fs.writeFile(database_path+".tmp", JSON.stringify(database), (err) => {
+        if(err) console.log(`Failed to save database to ${database_path}.tmp : ${err}`);
+        else fs.rename(database_path+".tmp", database_path, (err) => {
+            if(err) console.log(`Failed to save database to ${database_path} : ${err}`);
+            else console.log(`Database saved to ${database_path}`);
+        });
     });
 }, flush_interval*1000)

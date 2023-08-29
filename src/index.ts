@@ -45,17 +45,22 @@ app.route("/")
         res.json({ "OpenRTDB": { "ready": true, "version": process.env.npm_package_version } });
     })
 
-app.route("/~rules")
+app.route("/.settings/rules.json")
     .get((req, res) => {
         res.json(rules);
     })
     .post((req, res) => {
+        // Firebase client in test mode use PUT on this url, but with "Content-Type: text/plain" and "Authorization: Bearer owner"
         rules = req.body;
+        if(!rules.hasOwnProperty("rules")) {
+            throw new Error('Empty rules.');
+        }
+
         fs.writeFile(rules_path+".tmp", JSON.stringify(rules), (err) => {
             if (err) console.log(`Failed to save rules to ${rules_path}.tmp : ${err}`);
             else fs.rename(rules_path+".tmp", rules_path, (err) => {
                 if(err) console.log(`Failed to save rules to ${database_path} : ${err}`);
-                else res.status(204).send();
+                else res.json({"status":"ok"});
             });
         });
     })

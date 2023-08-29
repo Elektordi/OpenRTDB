@@ -10,7 +10,7 @@ const api_port = parseInt(process.env.API_PORT || "9000");
 const data_dir = path.resolve(process.env.DATA_DIR || (__dirname + "/../data"));
 const flush_interval = parseInt(process.env.FLUSH_INTERVAL || "60");
 
-if(!process.env.DATA_DIR && !fs.existsSync(data_dir)) {
+if(!fs.existsSync(data_dir)) {
     console.log(`${data_dir} did not exist and was created!`)
     fs.mkdirSync(data_dir);
 }
@@ -21,12 +21,11 @@ let database_changed: boolean = false;
 let rules: any = {}
 
 const database_path = path.resolve(data_dir, "database.json")
-console.log(database_path);
 if(fs.existsSync(database_path)) {
     database = JSON.parse(fs.readFileSync(database_path, 'utf8'))
     console.log(`Database loaded from ${database_path}`)
 } else {
-    console.log("Empty database created!")
+    console.log(`${database_path} not found. Empty database created!`)
 }
 
 const rules_path = path.resolve(data_dir, "rules.json")
@@ -34,7 +33,7 @@ if(fs.existsSync(rules_path)) {
     rules = JSON.parse(fs.readFileSync(rules_path, 'utf8'))
     console.log(`Rules loaded from ${rules_path}`)
 } else {
-    console.log("Empty rules created!")
+    console.log(`${rules_path} not found. Empty rules created!`)
 }
 
 

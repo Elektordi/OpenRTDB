@@ -113,7 +113,7 @@ app.route("/*.json")
         let generic_values: any = {};
         let permitted = false;
         // @ts-ignore
-        let auth = req.auth || {};
+        let auth = req.auth || null;
         while(path.length > 0) {
             let elem = path.shift() as string;
             if(rref) {
@@ -131,8 +131,13 @@ app.route("/*.json")
                     if(typeof rref[".read"] == 'boolean') {
                         perm = rref[".read"];
                     } else if(typeof rref[".read"] == 'string') {
-                        let f = "return "+rref[".write"].replace("$", "generic.");
-                        perm = new Function("generic", "auth", "data", f)(generic_values, auth, dbref);
+                        let f = "return "+rref[".read"].replace("$", "generic.");
+                        try {
+                            perm = new Function("generic", "auth", "data", f)(generic_values, auth, dbref);
+                        } catch (error) {
+                            console.log(error);
+                            perm = false;
+                        }
                     }
                     if(!perm) {
                         permitted = false;
@@ -141,11 +146,10 @@ app.route("/*.json")
                     permitted = true;
                 }
             }
-            if(elem in dbref) {
+            if(dbref && elem in dbref) {
                 dbref = dbref[elem];
             } else {
                 dbref = null;
-                break;
             }
         }
         if(!permitted) {
@@ -170,7 +174,7 @@ app.route("/*.json")
         let generic_values: any = {};
         let permitted = false;
         // @ts-ignore
-        let auth = req.auth || {};
+        let auth = req.auth || null;
         while(path.length > 0) {
             let elem = path.shift() as string;
             if(rref) {
@@ -189,7 +193,13 @@ app.route("/*.json")
                         perm = rref[".write"];
                     } else if(typeof rref[".write"] == 'string') {
                         let f = "return "+rref[".write"].replace("$", "generic.");
-                        perm = new Function("generic", "auth", "data", "newData", f)(generic_values, auth, dbref, {});
+                        let newData = data; // TODO
+                        try {
+                            perm = new Function("generic", "auth", "data", "newData", f)(generic_values, auth, dbref, newData);
+                        } catch (error) {
+                            console.log(error);
+                            perm = false;
+                        }
                     }
                     if(!perm) {
                         permitted = false;

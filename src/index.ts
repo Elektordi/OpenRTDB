@@ -3,6 +3,9 @@ import * as path from 'path';
 import cors from 'cors'
 import express from 'express'
 import * as dotenv from 'dotenv'
+import { expressjwt } from 'express-jwt';
+import jwt from 'jsonwebtoken';
+import * as crypto from "crypto";
 
 
 dotenv.config()
@@ -19,6 +22,8 @@ export const app = express()
 let database: any = {}
 let database_changed: boolean = false;
 let rules: any = {}
+let jwtpublickey: crypto.KeyObject;
+let jwtprivatekey: crypto.KeyObject;
 
 const database_path = path.resolve(data_dir, "database.json")
 if(fs.existsSync(database_path)) {
@@ -36,13 +41,48 @@ if(fs.existsSync(rules_path)) {
     console.log(`${rules_path} not found. Empty rules created!`)
 }
 
+const jwtkey_path = path.resolve(data_dir, "jwt.key")
+if(!fs.existsSync(jwtkey_path)) {
+    // @ts-ignore
+    let jwtkey = crypto.generateKeyPairSync('rsa', {
+        modulusLength: 4096,
+        publicKeyEncoding: { format: 'jwk' },
+        privateKeyEncoding: { format: 'jwk' },
+    });
+    fs.writeFile(jwtkey_path, JSON.stringify(jwtkey), (err) => {
+        if (err) console.log(`Failed to save key to ${jwtkey_path} : ${err}`);
+    });
+    console.log(`${jwtkey_path} not found. New JWT key created!`)
+}
+let jwtkey = JSON.parse(fs.readFileSync(jwtkey_path, 'utf8'))
+jwtpublickey = crypto.createPublicKey({ key: jwtkey['publicKey'], format:'jwk' })
+jwtprivatekey = crypto.createPrivateKey({ key: jwtkey['privateKey'], format:'jwk' })
+console.log(`JWT key loaded from ${jwtkey_path}`)
+
 
 app.use(express.json())
 app.use(cors())
+app.use(
+  expressjwt({
+    secret: jwtpublickey,
+    algorithms: ["RS256"],
+    credentialsRequired: false,
+  })
+);
 
 app.route("/")
     .get((req, res) => {
         res.json({ "OpenRTDB": { "ready": true, "version": process.env.npm_package_version } });
+    })
+
+app.route("/.testtoken")
+    .get((req, res) => {
+        let token = jwt.sign(req.query, jwtprivatekey, {
+            algorithm: 'RS256',
+            expiresIn: '1h',
+            issuer: 'openrtdb'
+        });
+        res.type("text").send(token);
     })
 
 app.route("/.settings/rules.json")
@@ -72,7 +112,8 @@ app.route("/*.json")
         let rref = rules;
         let generic_values: any = {};
         let permitted = false;
-        let auth = {'uid': 'test'}; // TODO
+        // @ts-ignore
+        let auth = req.auth || {};
         while(path.length > 0) {
             let elem = path.shift() as string;
             if(rref) {
@@ -128,7 +169,8 @@ app.route("/*.json")
         let rref = rules;
         let generic_values: any = {};
         let permitted = false;
-        let auth = {'uid': 'test'}; // TODO
+        // @ts-ignore
+        let auth = req.auth || {};
         while(path.length > 0) {
             let elem = path.shift() as string;
             if(rref) {

@@ -42,7 +42,7 @@ app.use(cors())
 
 app.route("/")
     .get((req, res) => {
-        res.json({ "Hello": "World" });
+        res.json({ "OpenRTDB": { "ready": true, "version": process.env.npm_package_version } });
     })
 
 app.route("/~rules")

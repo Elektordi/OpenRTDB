@@ -56,7 +56,7 @@ app.route("/.settings/rules.json")
             throw new Error('Empty rules.');
         }
 
-        fs.writeFile(rules_path+".tmp", JSON.stringify(rules), (err) => {
+        fs.writeFile(rules_path+".tmp", JSON.stringify(rules["rules"]), (err) => {
             if (err) console.log(`Failed to save rules to ${rules_path}.tmp : ${err}`);
             else fs.rename(rules_path+".tmp", rules_path, (err) => {
                 if(err) console.log(`Failed to save rules to ${database_path} : ${err}`);
@@ -69,8 +69,37 @@ app.route("/*.json")
     .get((req, res) => {
         let path = (req.params as string[])["0"].split("/").filter(s => s != '');
         let dbref = database;
+        let rref = rules;
+        let generic_values: any = {};
+        let permitted = false;
+        let auth = {'uid': 'test'}; // TODO
         while(path.length > 0) {
             let elem = path.shift() as string;
+            if(rref) {
+                let generic_elem = Object.keys(rref).find((x: string) => x.startsWith("$"));
+                if(elem in rref) {
+                    rref = rref[elem];
+                } else if(generic_elem && generic_elem in rref) {
+                    generic_values[generic_elem.replace("$", "")] = elem;
+                    rref = rref[generic_elem];
+                } else {
+                    rref = null;
+                }
+                if(rref && ".read" in rref) {
+                    let perm = false;
+                    if(typeof rref[".read"] == 'boolean') {
+                        perm = rref[".read"];
+                    } else if(typeof rref[".read"] == 'string') {
+                        let f = "return "+rref[".write"].replace("$", "generic.");
+                        perm = new Function("generic", "auth", "data", f)(generic_values, auth, dbref);
+                    }
+                    if(!perm) {
+                        permitted = false;
+                        break
+                    }
+                    permitted = true;
+                }
+            }
             if(elem in dbref) {
                 dbref = dbref[elem];
             } else {
@@ -78,26 +107,69 @@ app.route("/*.json")
                 break;
             }
         }
+        if(!permitted) {
+            res.status(401).json({"error" : "Permission denied"});
+            return;
+        }
         res.json(dbref);
     })
     .post((req, res) => {
         let path = (req.params as string[])["0"].split("/").filter(s => s != '');
         let data = req.body;
         if(path.length == 0) {
+            // TODO: Security
             database = data;
             database_changed = true;
             res.json(data);
             return;
         }
         let dbref = database;
-        while(path.length > 1) {
+        let lastref = null;
+        let rref = rules;
+        let generic_values: any = {};
+        let permitted = false;
+        let auth = {'uid': 'test'}; // TODO
+        while(path.length > 0) {
             let elem = path.shift() as string;
+            if(rref) {
+                let generic_elem = Object.keys(rref).find((x: string) => x.startsWith("$"));
+                if(elem in rref) {
+                    rref = rref[elem];
+                } else if(generic_elem && generic_elem in rref) {
+                    generic_values[generic_elem.replace("$", "")] = elem;
+                    rref = rref[generic_elem];
+                } else {
+                    rref = null;
+                }
+                if(rref && ".write" in rref) {
+                    let perm = false;
+                    if(typeof rref[".write"] == 'boolean') {
+                        perm = rref[".write"];
+                    } else if(typeof rref[".write"] == 'string') {
+                        let f = "return "+rref[".write"].replace("$", "generic.");
+                        perm = new Function("generic", "auth", "data", "newData", f)(generic_values, auth, dbref, {});
+                    }
+                    if(!perm) {
+                        permitted = false;
+                        break
+                    }
+                    permitted = true;
+                }
+            }
+            if(path.length == 0) {
+                if(!permitted) break;
+                dbref[elem] = data;
+                break;
+            }
             if(!(elem in dbref)) {
                 dbref[elem] = {};
             }
             dbref = dbref[elem];
         }
-        dbref[path[0]] = data;
+        if(!permitted) {
+            res.status(401).json({"error" : "Permission denied"});
+            return;
+        }
         database_changed = true;
         res.json(data);
     })
